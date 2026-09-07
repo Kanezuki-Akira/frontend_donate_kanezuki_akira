@@ -67,6 +67,14 @@ const DonateService = {
       { requiresAuth: false }
     );
     return response.data || { items: [], next_cursor: null, has_more: false };
+  },
+
+  async checkStatus(paymentCode) {
+    const endpoint = (CONFIG.ENDPOINTS?.DONATE?.STATUS)
+      ? CONFIG.ENDPOINTS.DONATE.STATUS(encodeURIComponent(paymentCode))
+      : `/donate/status/${encodeURIComponent(paymentCode)}`;
+    const response = await apiClient.get(endpoint, { requiresAuth: false });
+    return response.data;
   }
 };
 

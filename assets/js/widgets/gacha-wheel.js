@@ -399,21 +399,23 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (wheelType === 'time') {
           const sec = Number(wonReward.value ?? wonReward.seconds ?? 0);
           const timeDesc = sec >= 0 ? `cộng ${sec} giây` : `trừ ${Math.abs(sec)} giây`;
-          ttsText = `Cảm ơn ${donorName} đã donate ${amountStr}. Kết quả vòng quay: được ${timeDesc}!`;
+          ttsText = `${donorName} đã donate ${amountStr}. Kết quả vòng quay: được ${timeDesc}!`;
         } else {
           const prize = wonReward.label || wonReward.value || 'phần thưởng';
-          ttsText = `Cảm ơn ${donorName} đã donate ${amountStr}. Kết quả vòng quay: ${prize}!`;
+          ttsText = `${donorName} đã donate ${amountStr}. Kết quả vòng quay: ${prize}!`;
+        }
+
+        const cleanDonorMsg = (data.message && typeof SoundManager !== 'undefined' && SoundManager.sanitizeTTSText)
+          ? SoundManager.sanitizeTTSText(data.message)
+          : (data.message || '').trim();
+        if (cleanDonorMsg) {
+          ttsText += ` Lời nhắn: ${cleanDonorMsg}`;
         }
 
         if (SoundManager.speakText) {
           await SoundManager.speakText(ttsText, ttsVolume);
-        } else if (SoundManager.speakDonation) {
-          await SoundManager.speakDonation({
-            name: donorName,
-            amount: data.amount,
-            message: ttsText,
-            volume: ttsVolume
-          });
+        } else if (SoundManager.speakSinglePhrase) {
+          await SoundManager.speakSinglePhrase(ttsText, ttsVolume);
         }
       } catch (err) {
         console.warn('Lỗi TTS Gacha:', err);

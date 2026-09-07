@@ -247,6 +247,21 @@ const SoundManager = {
   },
 
   /**
+   * Đọc một câu thoại văn bản tùy chỉnh (dùng cho Gacha hoặc thông báo đơn lẻ)
+   * Đảm bảo qua hàng đợi FIFO, không bị đè và chỉ đọc đúng 1 lần duy nhất.
+   */
+  speakText(text, volume = 1.0) {
+    return new Promise((resolve) => {
+      this._ttsQueue.push({
+        rawText: text,
+        volume,
+        resolve
+      });
+      this._processTtsQueue();
+    });
+  },
+
+  /**
    * Hàng đợi TTS Audio Queue (FIFO):
    * Đưa request đọc donate vào hàng đợi tuần tự. Đảm bảo nếu nhận 5 donate cùng lúc,
    * từng giọng đọc sẽ phát lần lượt, không bao giờ bị đè hay cắt ngang lời nhau.
@@ -273,6 +288,17 @@ const SoundManager = {
 
     try {
       this.stopTTS(false);
+
+      // Nếu là câu thoại đơn thuần (rawText) từ Gacha hoặc thông báo riêng lẻ
+      if (item.rawText) {
+        const cleanMsg = this.sanitizeTTSText(item.rawText);
+        if (cleanMsg) {
+          await this.speakSinglePhrase(cleanMsg, item.volume);
+        }
+        await new Promise(resolve => setTimeout(resolve, 500));
+        item.resolve();
+        return;
+      }
 
       const donorName = (item.name || 'Kanezuki Akira').trim();
       const spokenAmount = this.formatAmountForSpeech(item.amount);

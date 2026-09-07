@@ -24,6 +24,7 @@ const CONFIG = {
       TEST_ALERT: '/donate/test-alert',
       CLEANUP: '/donate/cleanup',
       HISTORY: '/donate/history',
+      STATUS: (code) => `/donate/status/${code}`,
     },
     SUBATHON: {
       CREATE: '/subathon',
@@ -68,9 +69,9 @@ const CONFIG = {
   },
 
   POLL_INTERVALS: {
-    DONATE_WIDGET: 60000,
+    DONATE_WIDGET: 10000,
     SUBATHON_TICK: 1000,
-    SUBATHON_SYNC: 4000,
+    SUBATHON_SYNC: 10000,
   },
 
   STORAGE_KEYS: {
