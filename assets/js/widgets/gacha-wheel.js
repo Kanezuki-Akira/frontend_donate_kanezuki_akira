@@ -396,13 +396,17 @@ document.addEventListener('DOMContentLoaded', async () => {
       await new Promise(r => setTimeout(r, 600));
       try {
         let ttsText = '';
+        const spokenAmount = (typeof SoundManager !== 'undefined' && SoundManager.formatAmountForSpeech)
+          ? SoundManager.formatAmountForSpeech(data.amount)
+          : amountStr;
+
         if (wheelType === 'time') {
           const sec = Number(wonReward.value ?? wonReward.seconds ?? 0);
           const timeDesc = sec >= 0 ? `cộng ${sec} giây` : `trừ ${Math.abs(sec)} giây`;
-          ttsText = `${donorName} đã donate ${amountStr}. Kết quả vòng quay: được ${timeDesc}!`;
+          ttsText = `${donorName} đã donate ${spokenAmount}. Kết quả vòng quay: ${timeDesc}!`;
         } else {
           const prize = wonReward.label || wonReward.value || 'phần thưởng';
-          ttsText = `${donorName} đã donate ${amountStr}. Kết quả vòng quay: ${prize}!`;
+          ttsText = `${donorName} đã donate ${spokenAmount}. Kết quả vòng quay: ${prize}!`;
         }
 
         const cleanDonorMsg = (data.message && typeof SoundManager !== 'undefined' && SoundManager.sanitizeTTSText)
