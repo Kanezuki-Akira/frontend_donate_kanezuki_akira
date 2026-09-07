@@ -182,9 +182,9 @@ class ApiClient {
 
 const apiClient = new ApiClient();
 
-// Keep-alive: Tự động ping Endpoint health check "/" mỗi 5 phút để Render Backend không tự ngủ (spin-down)
+// Keep-alive: Tự động ping Endpoint health check "/" mỗi 3 phút để Render Backend không tự ngủ (spin-down)
 (function initBackendKeepAlive() {
-  const HEALTH_PING_MS = 5 * 60 * 1000; // 5 phút
+  const HEALTH_PING_MS = 3 * 60 * 1000; // 3 phút
   async function pingHealthCheck() {
     try {
       const backendUrl = (typeof CONFIG !== 'undefined' && CONFIG.BACKEND_URL)
