@@ -107,10 +107,18 @@ const SoundManager = {
   sanitizeTTSText(text) {
     if (!text || typeof text !== 'string') return '';
     let cleaned = text.trim();
+    // Loại bỏ thẻ HTML/XML
+    cleaned = cleaned.replace(/<[^>]+>/g, ' ');
+    // Giảm bớt ký tự lặp lại spam
     cleaned = cleaned.replace(/(.)\1{2,}/g, '$1$1');
     cleaned = cleaned.replace(/(ha|he|hi|ho|kk|kaka){3,}/gi, 'hahaha');
     if (cleaned.length > 180) {
       cleaned = cleaned.substring(0, 177) + '...';
+    }
+    cleaned = cleaned.trim();
+    // Nếu tin nhắn chỉ toàn emoji, dấu chấm, ký hiệu không chứa từ ngữ phát âm được
+    if (!/[\p{L}\p{N}]/u.test(cleaned)) {
+      return '';
     }
     return cleaned;
   },
