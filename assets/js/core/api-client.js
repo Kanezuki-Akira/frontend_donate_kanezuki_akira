@@ -182,20 +182,4 @@ class ApiClient {
 
 const apiClient = new ApiClient();
 
-// Keep-alive: Tự động ping Endpoint health check "/" mỗi 3 phút để Render Backend không tự ngủ (spin-down)
-(function initBackendKeepAlive() {
-  const HEALTH_PING_MS = 3 * 60 * 1000; // 3 phút
-  async function pingHealthCheck() {
-    try {
-      const backendUrl = (typeof CONFIG !== 'undefined' && CONFIG.BACKEND_URL)
-        ? CONFIG.BACKEND_URL
-        : 'https://backend-donate-kanezuki-akira.onrender.com';
-      await fetch(`${backendUrl}/`, { method: 'GET', cache: 'no-store' });
-      console.debug('[KeepAlive] Đã gửi ping health check tới backend server.');
-    } catch {
-      // Bỏ qua lỗi kết nối tạm thời
-    }
-  }
-  setInterval(pingHealthCheck, HEALTH_PING_MS);
-})();
 
