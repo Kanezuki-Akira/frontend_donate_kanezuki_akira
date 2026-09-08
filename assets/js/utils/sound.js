@@ -3,10 +3,26 @@ const SoundManager = {
   currentAudio: null,
 
   init() {
+    this.unlockAudio();
+  },
+
+  unlockAudio() {
+    this._googleBlockedUntil = 0;
     try {
-      this.getAudioContext();
+      const ctx = this.getAudioContext();
+      if (ctx && ctx.state === 'suspended') {
+        ctx.resume().catch(() => { });
+      }
     } catch {
       // AudioContext init error ignored
+    }
+    try {
+      const dummy = new Audio();
+      dummy.src = 'data:audio/wav;base64,UklGRigAAABXQVZFZm10IBIAAAABAAEARKwAAIhYAQACABAAAABkYXRhAgAAAAEA';
+      dummy.volume = 0.01;
+      dummy.play().catch(() => { });
+    } catch {
+      // Dummy audio error ignored
     }
   },
 
@@ -93,15 +109,15 @@ const SoundManager = {
     let cleaned = text.trim();
     cleaned = cleaned.replace(/(.)\1{2,}/g, '$1$1');
     cleaned = cleaned.replace(/(ha|he|hi|ho|kk|kaka){3,}/gi, 'hahaha');
-    if (cleaned.length > 250) {
-      cleaned = cleaned.substring(0, 247) + '...';
+    if (cleaned.length > 180) {
+      cleaned = cleaned.substring(0, 177) + '...';
     }
     return cleaned;
   },
 
   _ttsQueue: [],
   _isTtsProcessing: false,
-  _googleBlockedUntil: 0, // Circuit Breaker: nếu Google chặn (429/403), tự ngắt chuyển sang Web Speech trong 15 phút
+  _googleBlockedUntil: 0, // Circuit Breaker: nếu Google chặn (429/403), tự ngắt chuyển sang Web Speech trong 10 phút
 
   stopTTS(clearQueue = false) {
     if (clearQueue) {
@@ -127,14 +143,15 @@ const SoundManager = {
 
   /**
    * Phát một câu đơn với cơ chế Circuit Breaker:
-   * Nếu Google TTS đang bị chặn hoặc lỗi mạng, chuyển ngay sang Web Speech API bản địa không độ trễ.
+   * Ưu tiên Backend Proxy -> Fallback Google Direct -> Fallback Web Speech API (Offline).
+   * Tuyệt đối không kích hoạt Circuit Breaker nếu lỗi do chính sách Autoplay (NotAllowedError).
    */
   speakSinglePhrase(text, volume = 1.0) {
     return new Promise((resolve) => {
       const trimmed = (text || '').trim();
       if (!trimmed) return resolve();
 
-      // Kiểm tra Circuit Breaker: Nếu Google đang bị block, dùng Web Speech API bản địa ngay lập tức
+      // Kiểm tra Circuit Breaker: Nếu Google đang bị block do lỗi mạng/IP, dùng Web Speech API bản địa
       const now = Date.now();
       if (now < this._googleBlockedUntil) {
         this.speakWebSpeech(trimmed, volume).then(resolve);
@@ -150,6 +167,7 @@ const SoundManager = {
 
       const audio = new Audio();
       audio.volume = Math.max(0, Math.min(1, volume));
+      audio.referrerPolicy = 'no-referrer';
       this.currentAudio = audio;
 
       let resolved = false;
@@ -161,7 +179,7 @@ const SoundManager = {
         }
       };
 
-      // Giới hạn thời gian tối đa để không bao giờ bị treo
+      // Giới hạn thời gian tối đa để không bao giờ bị treo hàng đợi
       const timeoutTimer = setTimeout(() => {
         finish();
       }, 14000);
@@ -173,36 +191,42 @@ const SoundManager = {
 
       const tripCircuitBreakerAndFallback = () => {
         clearTimeout(timeoutTimer);
-        // Khóa Google TTS trong 15 phút để tránh bị phạt IP 429
-        this._googleBlockedUntil = Date.now() + 15 * 60 * 1000;
-        console.warn('[SoundManager TTS] Kích hoạt Circuit Breaker: Chuyển toàn bộ TTS sang Web Speech API bản địa.');
+        // Chỉ khóa Google TTS 10 phút khi thực sự gặp lỗi mạng hoặc Google bị chặn IP (429/502)
+        this._googleBlockedUntil = Date.now() + 10 * 60 * 1000;
+        console.warn('[SoundManager TTS] Kích hoạt Circuit Breaker: Chuyển TTS sang Web Speech API bản địa.');
         this.speakWebSpeech(trimmed, volume).then(finish);
       };
 
       let triedDirectGoogle = false;
-      audio.onerror = () => {
-        if (!triedDirectGoogle) {
-          triedDirectGoogle = true;
-          audio.src = googleTtsUrl;
-          audio.play().catch(() => {
-            tripCircuitBreakerAndFallback();
-          });
-        } else {
+      const tryDirectGoogleFallback = () => {
+        if (triedDirectGoogle) {
           tripCircuitBreakerAndFallback();
+          return;
         }
+        triedDirectGoogle = true;
+        audio.src = googleTtsUrl;
+        audio.play().catch((err) => {
+          if (err && err.name === 'NotAllowedError') {
+            console.warn('[SoundManager TTS] Trình duyệt chặn tự động phát âm thanh (cần tương tác click vào màn hình).');
+            finish();
+            return;
+          }
+          tripCircuitBreakerAndFallback();
+        });
+      };
+
+      audio.onerror = () => {
+        tryDirectGoogleFallback();
       };
 
       audio.src = backendTtsUrl;
-      audio.play().catch(() => {
-        if (!triedDirectGoogle) {
-          triedDirectGoogle = true;
-          audio.src = googleTtsUrl;
-          audio.play().catch(() => {
-            tripCircuitBreakerAndFallback();
-          });
-        } else {
-          tripCircuitBreakerAndFallback();
+      audio.play().catch((err) => {
+        if (err && err.name === 'NotAllowedError') {
+          console.warn('[SoundManager TTS] Trình duyệt chặn tự động phát âm thanh (cần tương tác click vào màn hình).');
+          finish();
+          return;
         }
+        tryDirectGoogleFallback();
       });
     });
   },

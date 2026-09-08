@@ -416,6 +416,13 @@ document.addEventListener('DOMContentLoaded', async () => {
           ttsText += ` Lời nhắn: ${cleanDonorMsg}`;
         }
 
+        // Đảm bảo toàn bộ câu đọc không vượt quá 180 ký tự để Google TTS không trả lỗi 400
+        if (typeof SoundManager !== 'undefined' && SoundManager.sanitizeTTSText) {
+          ttsText = SoundManager.sanitizeTTSText(ttsText);
+        } else if (ttsText.length > 180) {
+          ttsText = ttsText.substring(0, 177) + '...';
+        }
+
         if (SoundManager.speakText) {
           await SoundManager.speakText(ttsText, ttsVolume);
         } else if (SoundManager.speakSinglePhrase) {
