@@ -118,6 +118,17 @@ const SoundManager = {
   _ttsQueue: [],
   _isTtsProcessing: false,
   _googleBlockedUntil: 0, // Circuit Breaker: nếu Google chặn (429/403), tự ngắt chuyển sang Web Speech trong 10 phút
+  _defaultVoice: 'vi-VN-HoaiMyNeural',
+
+  setVoice(voiceId) {
+    if (voiceId) {
+      this._defaultVoice = voiceId;
+    }
+  },
+
+  getVoice() {
+    return this._defaultVoice;
+  },
 
   stopTTS(clearQueue = false) {
     if (clearQueue) {
@@ -146,10 +157,13 @@ const SoundManager = {
    * Ưu tiên Backend Proxy -> Fallback Google Direct -> Fallback Web Speech API (Offline).
    * Tuyệt đối không kích hoạt Circuit Breaker nếu lỗi do chính sách Autoplay (NotAllowedError).
    */
-  speakSinglePhrase(text, volume = 1.0) {
+  speakSinglePhrase(text, volume = 1.0, options = {}) {
     return new Promise((resolve) => {
       const trimmed = (text || '').trim();
       if (!trimmed) return resolve();
+
+      const opts = typeof options === 'string' ? { voice: options } : (options || {});
+      const targetVoice = opts.voice || this._defaultVoice || 'vi-VN-HoaiMyNeural';
 
       // Kiểm tra Circuit Breaker: Nếu Google đang bị block do lỗi mạng/IP, dùng Web Speech API bản địa
       const now = Date.now();
@@ -158,11 +172,24 @@ const SoundManager = {
         return;
       }
 
+      let backendTtsUrl = '';
+      if (typeof TtsService !== 'undefined' && typeof TtsService.getAudioUrl === 'function') {
+        backendTtsUrl = TtsService.getAudioUrl({
+          text: trimmed,
+          voice: targetVoice,
+          rate: opts.rate,
+          pitch: opts.pitch
+        });
+      } else {
+        const encoded = encodeURIComponent(trimmed);
+        const backendBase = (typeof CONFIG !== 'undefined' && CONFIG.API_BASE_URL)
+          ? CONFIG.API_BASE_URL.replace(/\/+$/, '')
+          : 'http://127.0.0.1:8000/api';
+        const ttsPath = (typeof CONFIG !== 'undefined' && CONFIG.ENDPOINTS?.TTS?.GENERATE) || '/tts';
+        backendTtsUrl = `${backendBase}${ttsPath}?text=${encoded}&voice=${encodeURIComponent(targetVoice)}`;
+      }
+
       const encoded = encodeURIComponent(trimmed);
-      const backendBase = (typeof CONFIG !== 'undefined' && CONFIG.API_BASE_URL)
-        ? CONFIG.API_BASE_URL.replace(/\/+$/, '')
-        : 'http://127.0.0.1:8000/api';
-      const backendTtsUrl = `${backendBase}/tts?text=${encoded}`;
       const googleTtsUrl = `https://translate.google.com/translate_tts?ie=UTF-8&tl=vi&client=tw-ob&total=1&idx=0&textlen=${trimmed.length}&q=${encoded}`;
 
       const audio = new Audio();
@@ -274,11 +301,13 @@ const SoundManager = {
    * Đọc một câu thoại văn bản tùy chỉnh (dùng cho Gacha hoặc thông báo đơn lẻ)
    * Đảm bảo qua hàng đợi FIFO, không bị đè và chỉ đọc đúng 1 lần duy nhất.
    */
-  speakText(text, volume = 1.0) {
+  speakText(text, volume = 1.0, options = {}) {
     return new Promise((resolve) => {
+      const opts = typeof options === 'string' ? { voice: options } : (options || {});
       this._ttsQueue.push({
         rawText: text,
         volume,
+        options: opts,
         resolve
       });
       this._processTtsQueue();
@@ -290,13 +319,16 @@ const SoundManager = {
    * Đưa request đọc donate vào hàng đợi tuần tự. Đảm bảo nếu nhận 5 donate cùng lúc,
    * từng giọng đọc sẽ phát lần lượt, không bao giờ bị đè hay cắt ngang lời nhau.
    */
-  speakDonation({ name, amount, message, volume = 1.0 }) {
+  speakDonation({ name, amount, message, volume = 1.0, voice, rate, pitch }) {
     return new Promise((resolve, reject) => {
       this._ttsQueue.push({
         name,
         amount,
         message,
         volume,
+        voice,
+        rate,
+        pitch,
         resolve,
         reject
       });
@@ -317,7 +349,7 @@ const SoundManager = {
       if (item.rawText) {
         const cleanMsg = this.sanitizeTTSText(item.rawText);
         if (cleanMsg) {
-          await this.speakSinglePhrase(cleanMsg, item.volume);
+          await this.speakSinglePhrase(cleanMsg, item.volume, item.options);
         }
         await new Promise(resolve => setTimeout(resolve, 500));
         item.resolve();
@@ -326,16 +358,17 @@ const SoundManager = {
 
       const donorName = (item.name || 'Kanezuki Akira').trim();
       const spokenAmount = this.formatAmountForSpeech(item.amount);
+      const voiceOpts = { voice: item.voice, rate: item.rate, pitch: item.pitch };
 
       // Giai đoạn 1: Đọc tên người tặng và số tiền
       const phase1Text = `${donorName} đã donate ${spokenAmount}!`;
-      await this.speakSinglePhrase(phase1Text, item.volume);
+      await this.speakSinglePhrase(phase1Text, item.volume, voiceOpts);
 
       // Giai đoạn 2: Đọc lời nhắn (nếu có)
       const cleanMsg = this.sanitizeTTSText(item.message);
       if (cleanMsg) {
         await new Promise(resolve => setTimeout(resolve, 600)); // Nghỉ nhẹ tự nhiên giữa tên và lời nhắn
-        await this.speakSinglePhrase(cleanMsg, item.volume);
+        await this.speakSinglePhrase(cleanMsg, item.volume, voiceOpts);
       }
 
       // Giãn cách an toàn trước khi kết thúc item

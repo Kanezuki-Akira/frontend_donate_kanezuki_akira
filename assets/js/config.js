@@ -60,6 +60,10 @@ const CONFIG = {
       TEST: (id) => `/gacha/${id}/test`,
       HISTORY: '/gacha/history',
       WIDGET_JSON: (token) => `/gacha/widget/${token}`,
+    },
+    TTS: {
+      GENERATE: '/tts',
+      VOICES: '/tts/voices',
     }
   },
 

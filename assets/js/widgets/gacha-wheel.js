@@ -9,6 +9,11 @@ document.addEventListener('DOMContentLoaded', async () => {
   const isPinned = urlParams.has('preview') || urlParams.has('pin') || urlParams.has('demo') || urlParams.has('stay');
   const isTtsEnabled = urlParams.get('tts') !== '0';
   const ttsVolume = parseFloat(urlParams.get('tts_volume') || urlParams.get('volume') || '1.0');
+  const ttsVoice = urlParams.get('voice') || urlParams.get('tts_voice') || 'vi-VN-HoaiMyNeural';
+
+  if (typeof SoundManager !== 'undefined' && typeof SoundManager.setVoice === 'function') {
+    SoundManager.setVoice(ttsVoice);
+  }
 
   // DOM Elements
   const obsStatusPill = document.getElementById('obsStatusPill');
@@ -424,9 +429,9 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
 
         if (SoundManager.speakText) {
-          await SoundManager.speakText(ttsText, ttsVolume);
+          await SoundManager.speakText(ttsText, ttsVolume, { voice: ttsVoice });
         } else if (SoundManager.speakSinglePhrase) {
-          await SoundManager.speakSinglePhrase(ttsText, ttsVolume);
+          await SoundManager.speakSinglePhrase(ttsText, ttsVolume, { voice: ttsVoice });
         }
       } catch (err) {
         console.warn('Lỗi TTS Gacha:', err);
