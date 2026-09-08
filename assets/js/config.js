@@ -1,8 +1,6 @@
 const CONFIG = {
-  BACKEND_URL: "http://127.0.0.1:8000",
-  API_BASE_URL: "http://127.0.0.1:8000/api",
-  // BACKEND_URL: "https://backend-donate-kanezuki-akira.onrender.com",
-  // API_BASE_URL: "https://backend-donate-kanezuki-akira.onrender.com/api",
+  BACKEND_URL: "https://backend-donate-kanezuki-akira.onrender.com",
+  API_BASE_URL: "https://backend-donate-kanezuki-akira.onrender.com/api",
   
   ENDPOINTS: {
     AUTH: {
