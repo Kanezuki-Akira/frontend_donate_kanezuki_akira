@@ -122,13 +122,13 @@ const AdminGoals = (() => {
 
       return `
         <tr>
-          <td>#${item.id}</td>
+          <td class="font-mono text-muted">#${item.id}</td>
           <td><strong>${item.title}</strong></td>
           <td class="text-gold font-bold">${cur}</td>
           <td>${tgt}</td>
           <td><span class="tag-pill">${item.percentage}%</span></td>
           <td>${stBadge}</td>
-          <td class="text-muted text-sm">${dt}</td>
+          <td class="font-mono text-muted">${dt}</td>
         </tr>
       `;
     }).join('');
