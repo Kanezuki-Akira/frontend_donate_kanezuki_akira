@@ -111,6 +111,15 @@ document.addEventListener('DOMContentLoaded', () => {
   const navAdminLink = document.getElementById('navAdminLink');
   const btnBentoLogout = document.getElementById('btn-bento-logout');
 
+  // Magic Navigation Elements
+  const magicDesktopIndicator = document.getElementById('magicDesktopIndicator');
+  const mobileMagicNav = document.getElementById('mobileMagicNav');
+  const mobileMagicIndicator = document.getElementById('mobileMagicIndicator');
+  const mobileDockItems = document.querySelectorAll('.magic-dock-item');
+  const mobileDockAuthItem = document.getElementById('mobileDockAuthItem');
+  const mobileDockAuthTitle = document.getElementById('mobileDockAuthTitle');
+  const mobileDockAuthIcon = document.getElementById('mobileDockAuthIcon');
+
   function updateAuthUI() {
     const isLoggedIn = typeof AuthService !== 'undefined'
       ? AuthService.isLoggedIn()
@@ -139,6 +148,11 @@ document.addEventListener('DOMContentLoaded', () => {
       }
 
       if (btnBentoLogout) btnBentoLogout.style.display = 'inline-flex';
+      if (mobileDockAuthItem) mobileDockAuthItem.style.display = 'block';
+      if (mobileDockAuthTitle) mobileDockAuthTitle.textContent = 'Đăng xuất';
+      if (mobileDockAuthIcon) {
+        mobileDockAuthIcon.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>';
+      }
     } else {
       document.body.classList.remove('is-logged-in');
 
@@ -153,7 +167,13 @@ document.addEventListener('DOMContentLoaded', () => {
       }
       if (userProfileNav) userProfileNav.style.display = 'none';
       if (btnBentoLogout) btnBentoLogout.style.display = 'none';
+      if (mobileDockAuthItem) mobileDockAuthItem.style.display = 'none';
     }
+
+    // Luôn đồng bộ lại vị trí indicator khi cấu trúc dock thay đổi
+    requestAnimationFrame(() => {
+      updateAllMagicIndicators();
+    });
   }
 
   if (btnBentoLogout) {
@@ -475,6 +495,8 @@ document.addEventListener('DOMContentLoaded', () => {
       if (historySection) historySection.style.display = 'block';
       loadDonationHistory();
     }
+
+    updateAllMagicIndicators(tab);
   }
 
   let isMonthlyLeaderboard = false;
@@ -696,11 +718,162 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   });
 
+  // ==========================================
+  // MAGIC NAVIGATION CONTROLLER
+  // ==========================================
+  function updateDesktopMagicIndicator(targetEl) {
+    if (!magicDesktopIndicator || !mainNav) return;
+    const target = targetEl || mainNav.querySelector(`.nav-tab-link[data-tab="${currentTab}"]`);
+    if (!target || target.offsetParent === null) {
+      magicDesktopIndicator.style.opacity = '0';
+      return;
+    }
+    magicDesktopIndicator.style.opacity = '1';
+    magicDesktopIndicator.style.width = `${target.offsetWidth}px`;
+    magicDesktopIndicator.style.transform = `translate3d(${target.offsetLeft}px, 0, 0)`;
+  }
+
+  function updateMobileMagicIndicator(tab = currentTab) {
+    if (!mobileMagicIndicator) return;
+    
+    // Chỉ lấy các dock item đang thực sự hiển thị (không bị display: none)
+    const visibleItems = Array.from(document.querySelectorAll('.magic-dock-item')).filter(
+      (item) => window.getComputedStyle(item).display !== 'none'
+    );
+    if (!visibleItems.length) return;
+
+    let activeIndex = 0;
+    visibleItems.forEach((item, index) => {
+      const itemTab = item.dataset.tab;
+      const isActive = itemTab === tab;
+      item.classList.toggle('active', isActive);
+      if (isActive) {
+        activeIndex = index;
+      }
+    });
+
+    const activeItem = visibleItems[activeIndex];
+    if (!activeItem) return;
+
+    // Căn chuẩn xác theo tọa độ và kích thước pixel thực tế của tab đang active
+    if (activeItem.offsetWidth > 0) {
+      mobileMagicIndicator.style.width = `${activeItem.offsetWidth}px`;
+      mobileMagicIndicator.style.transform = `translate3d(${activeItem.offsetLeft}px, 0, 0)`;
+    } else {
+      const totalVisible = visibleItems.length;
+      mobileMagicIndicator.style.width = `${100 / totalVisible}%`;
+      mobileMagicIndicator.style.transform = `translate3d(${activeIndex * 100}%, 0, 0)`;
+    }
+  }
+
+  function updateAllMagicIndicators(tab = currentTab) {
+    updateDesktopMagicIndicator();
+    updateMobileMagicIndicator(tab);
+  }
+
+  function initMagicNavigation() {
+    // Desktop hover sliding effect
+    if (mainNav) {
+      const navLinks = mainNav.querySelectorAll('.nav-tab-link, .nav-logout-btn');
+      navLinks.forEach((link) => {
+        link.addEventListener('mouseenter', () => {
+          if (window.innerWidth > 768) {
+            updateDesktopMagicIndicator(link);
+          }
+        });
+      });
+
+      mainNav.addEventListener('mouseleave', () => {
+        if (window.innerWidth > 768) {
+          updateDesktopMagicIndicator();
+        }
+      });
+    }
+
+    // Mobile Dock click handlers
+    mobileDockItems.forEach((item) => {
+      const link = item.querySelector('.magic-dock-link');
+      const tab = item.dataset.tab;
+
+      link?.addEventListener('click', (e) => {
+        if (tab === 'profile') {
+          return;
+        }
+        e.preventDefault();
+
+        if (tab === 'auth') {
+          const isLoggedIn = typeof AuthService !== 'undefined'
+            ? AuthService.isLoggedIn()
+            : (typeof Storage !== 'undefined' && Storage.isAuthenticated());
+
+          if (isLoggedIn) {
+            if (typeof ConfirmModal !== 'undefined' && ConfirmModal.confirm) {
+              ConfirmModal.confirm({
+                title: 'Đăng xuất',
+                message: 'Bạn có chắc chắn muốn đăng xuất tài khoản?',
+                confirmText: 'Đăng xuất',
+                cancelText: 'Hủy',
+                type: 'danger'
+              }).then((confirmed) => {
+                if (confirmed && typeof AuthService !== 'undefined') {
+                  AuthService.logout();
+                }
+              });
+            } else if (typeof AuthService !== 'undefined') {
+              AuthService.logout();
+            }
+          } else {
+            switchMainTab('home');
+            const loginSec = document.getElementById('loginSection');
+            if (loginSec) {
+              loginSec.scrollIntoView({ behavior: 'smooth', block: 'center' });
+              const emailInput = document.getElementById('loginUsername');
+              if (emailInput) setTimeout(() => emailInput.focus(), 300);
+            }
+          }
+          return;
+        }
+
+        switchMainTab(tab);
+      });
+    });
+
+    // Auto-hide mobile dock when focusing input/textarea
+    const formInputs = document.querySelectorAll('input, textarea, select');
+    formInputs.forEach((input) => {
+      input.addEventListener('focus', () => {
+        document.body.classList.add('keyboard-open');
+      });
+      input.addEventListener('blur', () => {
+        document.body.classList.remove('keyboard-open');
+      });
+    });
+
+    // Window resize debounce
+    let resizeTimer;
+    window.addEventListener('resize', () => {
+      clearTimeout(resizeTimer);
+      resizeTimer = setTimeout(() => {
+        updateAllMagicIndicators(currentTab);
+      }, 80);
+    });
+
+    // Allow DOM fonts and elements to settle then place indicator
+    setTimeout(() => {
+      updateAllMagicIndicators(currentTab);
+    }, 120);
+  }
+
+  initMagicNavigation();
+
+  // Luôn cập nhật trạng thái auth ngay khi khởi tạo
+  updateAuthUI();
+
   const initialHash = window.location.hash.replace('#', '');
   if (['home', 'leaderboard', 'history'].includes(initialHash)) {
     switchMainTab(initialHash);
   } else {
-    updateAuthUI();
+    switchMainTab('home');
   }
 });
 
