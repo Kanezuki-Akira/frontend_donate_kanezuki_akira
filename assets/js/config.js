@@ -51,6 +51,7 @@ const CONFIG = {
     GACHA: {
       LIST: '/gacha',
       CREATE: '/gacha',
+      PUBLIC_ACTIVE: '/gacha/public-active',
       DETAIL: (id) => `/gacha/${id}`,
       UPDATE: (id) => `/gacha/${id}`,
       DELETE: (id) => `/gacha/${id}`,

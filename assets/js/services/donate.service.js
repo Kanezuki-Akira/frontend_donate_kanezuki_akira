@@ -1,8 +1,18 @@
 const DonateService = {
-  async createPending({ amount, message }) {
+  async createPending({ amount, message, is_gacha_mode, gacha_wheel_id }) {
+    const payload = {
+      amount: Number(amount),
+      message: message || ''
+    };
+    if (is_gacha_mode !== undefined) {
+      payload.is_gacha_mode = Boolean(is_gacha_mode);
+    }
+    if (gacha_wheel_id !== undefined && gacha_wheel_id !== null) {
+      payload.gacha_wheel_id = Number(gacha_wheel_id);
+    }
     const response = await apiClient.post(
       CONFIG.ENDPOINTS.DONATE.PENDING,
-      { amount: Number(amount), message: message || '' },
+      payload,
       { requiresAuth: true }
     );
     return response.data;

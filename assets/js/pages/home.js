@@ -341,6 +341,251 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
+  // --- GACHA DONATE INTEGRATION ---
+  let activeGachaWheels = [];
+  let selectedGachaWheel = null;
+
+  async function initGachaDonateMode() {
+    const gachaDonateSection = document.getElementById('gachaDonateSection');
+    const gachaOptInToggle = document.getElementById('gachaOptInToggle');
+    const gachaDetailsCollapse = document.getElementById('gachaDetailsCollapse');
+    const gachaWheelSelectWrap = document.getElementById('gachaWheelSelectWrap');
+    const gachaWheelSelect = document.getElementById('gachaWheelSelect');
+    const gachaPreviewWheelName = document.getElementById('gachaPreviewWheelName');
+    const gachaPreviewSpins = document.getElementById('gachaPreviewSpins');
+    const gachaPreviewCost = document.getElementById('gachaPreviewCost');
+    const gachaPreviewRemainder = document.getElementById('gachaPreviewRemainder');
+    const gachaRemainderLabel = document.getElementById('gachaRemainderLabel');
+    const gachaPreviewExpl = document.getElementById('gachaPreviewExpl');
+    const amountInput = document.getElementById('amount');
+
+    if (!gachaDonateSection || !gachaOptInToggle) return;
+
+    try {
+      if (typeof GachaService !== 'undefined' && GachaService.getPublicActiveWheels) {
+        activeGachaWheels = await GachaService.getPublicActiveWheels();
+      }
+    } catch (err) {
+      console.warn('[Gacha Mode] Lỗi tải danh sách vòng quay công khai:', err);
+    }
+
+    if (!Array.isArray(activeGachaWheels) || activeGachaWheels.length === 0) {
+      gachaDonateSection.style.display = 'none';
+      return;
+    }
+
+    // Có ít nhất 1 vòng quay đang hoạt động -> Hiển thị toggle tham gia Gacha
+    gachaDonateSection.style.display = 'block';
+
+    const gachaCustomSelect = document.getElementById('gachaCustomSelect');
+    const gachaCustomSelectTrigger = document.getElementById('gachaCustomSelectTrigger');
+    const gachaSelectedDisplay = document.getElementById('gachaSelectedDisplay');
+    const gachaCustomDropdownMenu = document.getElementById('gachaCustomDropdownMenu');
+
+    // Populate hidden select and custom dropdown
+    if (gachaWheelSelect) {
+      gachaWheelSelect.innerHTML = activeGachaWheels.map(w => {
+        const typeBadge = w.wheel_type === 'time' ? '[Vòng Thời gian]' : '[Vòng Quà tặng]';
+        const costStr = typeof Formatters !== 'undefined' ? Formatters.currency(w.trigger_amount) : `${Number(w.trigger_amount).toLocaleString('vi-VN')} ₫`;
+        return `<option value="${w.id}">${w.name} (${typeBadge} • ${costStr}/lượt)</option>`;
+      }).join('');
+
+      if (activeGachaWheels.length > 1 && gachaWheelSelectWrap) {
+        gachaWheelSelectWrap.style.display = 'block';
+      } else if (gachaWheelSelectWrap) {
+        gachaWheelSelectWrap.style.display = 'none';
+      }
+    }
+
+    selectedGachaWheel = activeGachaWheels[0];
+
+    function updateSelectedDisplay(wheel) {
+      if (!gachaSelectedDisplay || !wheel) return;
+      const isTime = wheel.wheel_type === 'time';
+      const costStr = typeof Formatters !== 'undefined' ? Formatters.currency(wheel.trigger_amount) : `${Number(wheel.trigger_amount).toLocaleString('vi-VN')} ₫`;
+      gachaSelectedDisplay.innerHTML = `
+        <span class="gacha-selected-name">${wheel.name}</span>
+        <span class="gacha-selected-badge ${isTime ? 'time' : 'reward'}">${isTime ? 'Thời gian' : 'Quà tặng'}</span>
+        <span class="gacha-selected-cost">• ${costStr}/lượt</span>
+      `;
+    }
+
+    function renderCustomDropdown() {
+      if (!gachaCustomDropdownMenu) return;
+
+      gachaCustomDropdownMenu.innerHTML = activeGachaWheels.map(w => {
+        const isTime = w.wheel_type === 'time';
+        const isSelected = selectedGachaWheel && selectedGachaWheel.id === w.id;
+        const costStr = typeof Formatters !== 'undefined' ? Formatters.currency(w.trigger_amount) : `${Number(w.trigger_amount).toLocaleString('vi-VN')} ₫`;
+        
+        const badgeSvg = isTime
+          ? `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="11" height="11"><circle cx="12" cy="13" r="8"/><path d="M12 9v4l2.5 2.5"/></svg>`
+          : `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="11" height="11"><polyline points="20 12 20 22 4 22 4 12"/><rect x="2" y="7" width="20" height="5"/><line x1="12" y1="22" x2="12" y2="7"/></svg>`;
+
+        const checkSvg = isSelected
+          ? `<svg class="gacha-option-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" width="15" height="15"><polyline points="20 6 9 17 4 12"/></svg>`
+          : '';
+
+        return `
+          <div class="gacha-custom-option ${isSelected ? 'is-selected' : ''}" data-id="${w.id}">
+            <div class="gacha-option-info">
+              <div class="gacha-option-title-row">
+                <span class="gacha-option-name">${w.name}</span>
+                <span class="gacha-option-badge ${isTime ? 'time' : 'reward'}">
+                  ${badgeSvg}
+                  <span>${isTime ? 'Vòng Thời gian' : 'Vòng Quà tặng'}</span>
+                </span>
+              </div>
+            </div>
+            <div class="gacha-option-right">
+              <span class="gacha-option-cost">${costStr}/lượt</span>
+              ${checkSvg}
+            </div>
+          </div>
+        `;
+      }).join('');
+
+      gachaCustomDropdownMenu.querySelectorAll('.gacha-custom-option').forEach(opt => {
+        opt.addEventListener('click', (e) => {
+          e.stopPropagation();
+          const id = Number(opt.getAttribute('data-id'));
+          selectedGachaWheel = activeGachaWheels.find(w => w.id === id) || activeGachaWheels[0];
+          if (gachaWheelSelect) gachaWheelSelect.value = selectedGachaWheel.id;
+          updateSelectedDisplay(selectedGachaWheel);
+          renderCustomDropdown();
+          if (gachaCustomSelect) gachaCustomSelect.classList.remove('is-open');
+          if (gachaCustomSelectTrigger) gachaCustomSelectTrigger.setAttribute('aria-expanded', 'false');
+          updateCalculations();
+        });
+      });
+    }
+
+    if (gachaCustomSelectTrigger) {
+      gachaCustomSelectTrigger.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const isOpen = gachaCustomSelect.classList.toggle('is-open');
+        gachaCustomSelectTrigger.setAttribute('aria-expanded', String(isOpen));
+      });
+
+      document.addEventListener('click', (e) => {
+        if (gachaCustomSelect && !gachaCustomSelect.contains(e.target)) {
+          gachaCustomSelect.classList.remove('is-open');
+          gachaCustomSelectTrigger.setAttribute('aria-expanded', 'false');
+        }
+      });
+    }
+
+    updateSelectedDisplay(selectedGachaWheel);
+    renderCustomDropdown();
+
+    function updateCalculations() {
+      if (!selectedGachaWheel) return;
+
+      const gachaCard = gachaOptInToggle ? gachaOptInToggle.closest('.gacha-toggle-card') : null;
+
+      if (!gachaOptInToggle.checked) {
+        if (gachaDetailsCollapse) gachaDetailsCollapse.style.display = 'none';
+        if (gachaCard) gachaCard.classList.remove('is-active');
+        return;
+      }
+
+      if (gachaCard) gachaCard.classList.add('is-active');
+      if (gachaDetailsCollapse) gachaDetailsCollapse.style.display = 'block';
+
+      const rawAmount = amountInput ? Number(amountInput.value) : 0;
+      const totalVnd = rawAmount * 1000;
+      const triggerCost = selectedGachaWheel.trigger_amount || 20000;
+      const spins = Math.floor(totalVnd / triggerCost);
+      const remainder = totalVnd % triggerCost;
+      const isTimeWheel = selectedGachaWheel.wheel_type === 'time';
+      const hasSubathon = selectedGachaWheel.has_active_subathon ?? isTimeWheel;
+
+      const formatVnd = (amt) => (typeof Formatters !== 'undefined' ? Formatters.currency(amt) : `${Number(amt).toLocaleString('vi-VN')} ₫`);
+
+      if (gachaRemainderLabel) {
+        gachaRemainderLabel.textContent = (isTimeWheel && hasSubathon) ? 'CỘNG SUBATHON' : 'TIỀN DƯ ỦNG HỘ';
+      }
+
+      if (gachaPreviewWheelName) gachaPreviewWheelName.textContent = selectedGachaWheel.name;
+      if (gachaPreviewCost) gachaPreviewCost.textContent = `${formatVnd(triggerCost)}/lượt`;
+      if (gachaPreviewSpins) gachaPreviewSpins.textContent = `${spins} lượt`;
+      if (gachaPreviewRemainder) gachaPreviewRemainder.textContent = remainder > 0 ? `+${formatVnd(remainder)}` : '0 ₫';
+
+      if (gachaPreviewExpl) {
+        if (totalVnd <= 0) {
+          gachaPreviewExpl.innerHTML = `
+            <span class="gacha-expl-icon info">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="15" height="15">
+                <circle cx="12" cy="12" r="10"/>
+                <line x1="12" y1="16" x2="12" y2="12"/>
+                <line x1="12" y1="8" x2="12.01" y2="8"/>
+              </svg>
+            </span>
+            <span class="gacha-expl-text">Nhập số tiền ủng hộ (tối thiểu <strong>${formatVnd(triggerCost)}</strong>) để kích hoạt lượt quay.</span>
+          `;
+        } else if (spins > 0) {
+          if (remainder > 0) {
+            const remainderNote = (isTimeWheel && hasSubathon)
+              ? `Phần dư <strong>+${formatVnd(remainder)}</strong> sẽ tự động cộng vào Subathon!`
+              : `Phần dư <strong>+${formatVnd(remainder)}</strong> là tiền ủng hộ thêm cho Akira!`;
+            gachaPreviewExpl.innerHTML = `
+              <span class="gacha-expl-icon success">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="15" height="15">
+                  <path d="M12 2l2.4 6.2 6.6.6-5 4.5 1.5 6.5-5.5-3.5-5.5 3.5 1.5-6.5-5-4.5 6.6-.6z"/>
+                </svg>
+              </span>
+              <span class="gacha-expl-text">Bạn sẽ nhận <strong>${spins} lượt quay</strong> ${selectedGachaWheel.name}. ${remainderNote}</span>
+            `;
+          } else {
+            gachaPreviewExpl.innerHTML = `
+              <span class="gacha-expl-icon success">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="15" height="15">
+                  <path d="M12 2l2.4 6.2 6.6.6-5 4.5 1.5 6.5-5.5-3.5-5.5 3.5 1.5-6.5-5-4.5 6.6-.6z"/>
+                </svg>
+              </span>
+              <span class="gacha-expl-text">Toàn bộ số tiền quy đổi thành <strong>${spins} lượt quay</strong> ${selectedGachaWheel.name} trên stream!</span>
+            `;
+          }
+        } else {
+          const underNote = (isTimeWheel && hasSubathon)
+            ? `Toàn bộ số tiền sẽ được cộng vào Subathon!`
+            : `Toàn bộ số tiền sẽ được gửi ủng hộ Akira!`;
+          gachaPreviewExpl.innerHTML = `
+            <span class="gacha-expl-icon warning">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="15" height="15">
+                <path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/>
+                <line x1="12" y1="9" x2="12" y2="13"/>
+                <line x1="12" y1="17" x2="12.01" y2="17"/>
+              </svg>
+            </span>
+            <span class="gacha-expl-text">Chưa đủ 1 lượt quay (Cần tối thiểu <strong>${formatVnd(triggerCost)}</strong>). ${underNote}</span>
+          `;
+        }
+      }
+    }
+
+    gachaOptInToggle.addEventListener('change', updateCalculations);
+
+    if (gachaWheelSelect) {
+      gachaWheelSelect.addEventListener('change', (e) => {
+        const id = Number(e.target.value);
+        selectedGachaWheel = activeGachaWheels.find(w => w.id === id) || activeGachaWheels[0];
+        updateCalculations();
+      });
+    }
+
+    if (amountInput) {
+      amountInput.addEventListener('input', updateCalculations);
+      amountInput.addEventListener('change', updateCalculations);
+    }
+
+    document.querySelectorAll('.amount-btn').forEach(btn => {
+      btn.addEventListener('click', () => setTimeout(updateCalculations, 50));
+    });
+
+    updateCalculations();
+  }
+
   if (donateForm) {
     donateForm.addEventListener('submit', async (e) => {
       e.preventDefault();
@@ -359,6 +604,10 @@ document.addEventListener('DOMContentLoaded', () => {
         return;
       }
 
+      const gachaOptInToggle = document.getElementById('gachaOptInToggle');
+      const isGachaMode = Boolean(gachaOptInToggle && gachaOptInToggle.checked);
+      const gachaWheelId = (isGachaMode && selectedGachaWheel) ? selectedGachaWheel.id : null;
+
       const submitBtn = donateForm.querySelector('button[type="submit"]');
       if (submitBtn) {
         submitBtn.disabled = true;
@@ -368,7 +617,9 @@ document.addEventListener('DOMContentLoaded', () => {
       try {
         const paymentCode = await DonateService.createPending({
           amount: amount * 1000,
-          message: message
+          message: message,
+          is_gacha_mode: isGachaMode,
+          gacha_wheel_id: gachaWheelId
         });
 
         const qrAmountDisplay = document.getElementById('qrAmountDisplay');
@@ -868,6 +1119,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // Luôn cập nhật trạng thái auth ngay khi khởi tạo
   updateAuthUI();
+
+  // Khởi tạo tính năng Vòng quay Gacha trong form Donate
+  initGachaDonateMode();
 
   const initialHash = window.location.hash.replace('#', '');
   if (['home', 'leaderboard', 'history'].includes(initialHash)) {
